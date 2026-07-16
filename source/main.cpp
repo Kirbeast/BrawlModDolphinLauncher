@@ -23,6 +23,7 @@
 #include <fat.h>
 #include <sdcard/wiisd_io.h>
 #include <ogc/machine/processor.h>
+#include <dirent.h>
 #include "apploader.h"
 #include "memory.h"
 #include "utils.h"
@@ -45,6 +46,36 @@ u32 AppEntrypoint = 0;
 
 extern "C" {
 extern void __exception_closeall();
+}
+
+/* Function to find file in subdirectories (excluding apps and private) */
+char* find_file(const char *filename)
+{
+	DIR *dir;
+	struct dirent *entry;
+	char file_path[MAX_FAT_PATH];
+
+	dir = opendir("sd:/");
+	if(dir == NULL)
+		return NULL;
+
+	while((entry = readdir(dir)) != NULL)
+	{
+		if(strcasecmp(entry->d_name, "apps") == 0 || strcasecmp(entry->d_name, "private") == 0)
+			continue;
+		snprintf(file_path, MAX_FAT_PATH, "sd:/%s/%s", entry->d_name, filename);
+		FILE *test = fopen(file_path, "rb");
+		if(test != NULL)
+		{
+			fclose(test);
+			closedir(dir);
+			char *result = (char*)malloc(strlen(file_path) + 1);
+			strcpy(result, file_path);
+			return result;
+		}
+	}
+	closedir(dir);
+	return NULL;
 }
 
 int main()
@@ -104,34 +135,48 @@ int main()
 				gprintf("sd inserted!\n");
 			fatMountSimple("sd", sd);
 			/* gameconfig */
-			f = fopen("sd:/Project+/gc.txt", "rb");
-			if(f != NULL)
+			char *gc_path = find_file("gc.txt");
+			if(gc_path != NULL)
 			{
-				fseek(f, 0, SEEK_END);
-				fsize = ftell(f);
-				rewind(f);
-				u8 *gameconfig = (u8*)malloc(fsize);
-				fread(gameconfig, fsize, 1, f);
-				fclose(f);
-				app_gameconfig_load((char*)Disc_ID, gameconfig, fsize);
-				free(gameconfig);
+				f = fopen(gc_path, "rb");
+				if(f != NULL)
+				{
+					fseek(f, 0, SEEK_END);
+					fsize = ftell(f);
+					rewind(f);
+					u8 *gameconfig = (u8*)malloc(fsize);
+					fread(gameconfig, fsize, 1, f);
+					fclose(f);
+					app_gameconfig_load((char*)Disc_ID, gameconfig, fsize);
+					free(gameconfig);
+				}
+				free(gc_path);
 			}
 			/* gct */
-			char gamepath[21];
-			sprintf(gamepath, "sd:/Project+/%.6s.gct", (char*)Disc_ID);
-			gprintf("%s\n", gamepath);
-			f = fopen(gamepath, "rb");
-			if(f != NULL)
+#ifdef GCT_NETPLAY
+			char *gct_path = find_file("NETPLAY.gct");
+#else
+			/* region specific: build name from disc id (e.g. RSBE01.gct) */
+			char gct_name[16];
+			snprintf(gct_name, sizeof(gct_name), "%.6s.gct", (char*)Disc_ID);
+			char *gct_path = find_file(gct_name);
+#endif
+			if(gct_path != NULL)
 			{
-				gprintf("Opened gct\n");
-				fseek(f, 0, SEEK_END);
-				fsize = ftell(f);
-				rewind(f);
-				u8 *cheats = (u8*)malloc(fsize);
-				fread(cheats, fsize, 1, f);
-				fclose(f);
-				ocarina_set_codes((void*)0x800022A8, (u8*)0x80003000, cheats, fsize);
-				free(cheats);
+				f = fopen(gct_path, "rb");
+				if(f != NULL)
+				{
+					gprintf("Opened gct\n");
+					fseek(f, 0, SEEK_END);
+					fsize = ftell(f);
+					rewind(f);
+					u8 *cheats = (u8*)malloc(fsize);
+					fread(cheats, fsize, 1, f);
+					fclose(f);
+					ocarina_set_codes((void*)0x800022A8, (u8*)0x80003000, cheats, fsize);
+					free(cheats);
+				}
+				free(gct_path);
 			}
 			fatUnmount("sd");
 			sd->shutdown();

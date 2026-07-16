@@ -23,14 +23,14 @@ INCLUDES	:=	source
 #---------------------------------------------------------------------------------
 # options for code generation
 #---------------------------------------------------------------------------------
-CFLAGS		=	-g -ggdb -Ofast -Wall -Wextra $(MACHDEP) $(INCLUDE) -DHAVE_CONFIG_H
+CFLAGS		=	-g -ggdb -Ofast -Wall -Wextra $(MACHDEP) $(INCLUDE) -DHAVE_CONFIG_H $(EXTRADEFS)
 CXXFLAGS	=	$(CFLAGS)
 LDFLAGS		=	-g -ggdb $(MACHDEP) -Wl,-Map,$(notdir $@).map,--section-start,.init=0x80B00000
 
 #---------------------------------------------------------------------------------
 # any extra libraries we wish to link with the project
 #---------------------------------------------------------------------------------
-LIBS	:=	-lwiiuse -lbte -logc -lfat
+LIBS	:=	-lfat -lwiiuse -lbte -logc
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing
@@ -85,16 +85,28 @@ export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib) \
 export OUTPUT	:=	$(CURDIR)/$(TARGET)
 
 #---------------------------------------------------------------------------------
-.PHONY: $(BUILD) all clean
+.PHONY: all netplay offline build clean
 #---------------------------------------------------------------------------------
-$(BUILD):
-	@[ -d $@ ] || mkdir -p $@
+all: netplay offline
+
+netplay:
+	@$(MAKE) --no-print-directory build TARGET=netplay BUILD=build_netplay EXTRADEFS=-DGCT_NETPLAY
+	@cp netplay.dol "Netplay Launcher.dol"
+	@rm -f netplay.elf netplay.dol
+
+offline:
+	@$(MAKE) --no-print-directory build TARGET=offline BUILD=build_offline EXTRADEFS=
+	@cp offline.dol "Offline Launcher.dol"
+	@rm -f offline.elf offline.dol
+
+build:
+	@[ -d $(BUILD) ] || mkdir -p $(BUILD)
 	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
 
 #---------------------------------------------------------------------------------
 clean:
 	@echo clean ...
-	@rm -fr $(BUILD) $(OUTPUT).elf $(OUTPUT).dol
+	@rm -fr build_netplay build_offline netplay.elf netplay.dol offline.elf offline.dol "Netplay Launcher.dol" "Offline Launcher.dol"
 
 #---------------------------------------------------------------------------------
 else

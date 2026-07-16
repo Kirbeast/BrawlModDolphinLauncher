@@ -15,7 +15,7 @@
 typedef int   (*app_main)(void **dst, int *size, int *offset);
 typedef void  (*app_init)(void (*report)(const char *fmt, ...));
 typedef void *(*app_final)();
-typedef void  (*app_entry)(void (**init)(void (*report)(const char *fmt, ...)), int (**main)(), void *(**final)());
+typedef void  (*app_entry)(void (**init)(void (*report)(const char *fmt, ...)), int (**main)(void **dst, int *size, int *offset), void *(**final)());
 
 /* pointers */
 static u8 *appldr = (u8*)0x81200000;
